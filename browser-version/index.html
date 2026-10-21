@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevLang Compiler & IDE Workbench</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .font-mono { font-family: 'Fira Code', monospace; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1e1e2e; }
+        ::-webkit-scrollbar-thumb { background: #313244; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #45475a; }
+
+        /* Code Editor Line Numbers Sync */
+        .editor-container {
+            display: flex;
+            position: relative;
+            background-color: #11111b;
+        }
+        .line-numbers {
+            width: 45px;
+            padding: 12px 0;
+            text-align: right;
+            color: #585b70;
+            user-select: none;
+            background-color: #181825;
+            border-right: 1px solid #313244;
+            font-family: 'Fira Code', monospace;
+            font-size: 14px;
+            line-height: 1.5rem;
+        }
+        .editor-textarea {
+            flex: 1;
+            background: transparent;
+            color: #cdd6f4;
+            padding: 12px;
+            border: none;
+            outline: none;
+            resize: none;
+            font-family: 'Fira Code', monospace;
+            font-size: 14px;
+            line-height: 1.5rem;
+            white-space: pre;
+            overflow-x: auto;
+            tab-size: 4;
+        }
+
+        /* Active Tab Styling */
+        .tab-btn.active {
+            border-bottom: 2px solid #89b4fa;
+            color: #89b4fa;
+            background-color: #181825;
+        }
+    </style>
+</head>
+<body class="bg-[#1e1e2e] text-[#cdd6f4] h-screen flex flex-col overflow-hidden">
+
+    <!-- Top Header Bar -->
+    <header class="bg-[#11111b] border-b border-[#313244] px-4 py-2.5 flex justify-between items-center shrink-0">
+        <div class="flex items-center space-x-3">
+            <div class="bg-gradient-to-tr from-[#89b4fa] to-[#cba6f7] p-2 rounded-lg text-[#11111b] font-bold">
+                <i class="fa-solid fa-code"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold text-[#cdd6f4] tracking-wide">DevLang Workbench</h1>
+                <p class="text-xs text-[#a6adc8]">Interactive Compiler IDE & Pipeline Visualizer</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-3">
+            <label class="text-xs text-[#a6adc8]">Sample Script:</label>
+            <select id="sampleSelect" class="bg-[#181825] text-[#cdd6f4] text-xs border border-[#313244] rounded-md px-3 py-1.5 outline-none focus:border-[#89b4fa]">
+                <option value="1">1. Valid Simple Program</option>
+                <option value="2" selected>2. Complex Arithmetic</option>
+                <option value="3">3. If-Else Control Flow</option>
+                <option value="4">4. While Loop Counter</option>
+                <option value="5">5. Lexical Error Demo</option>
+                <option value="6">6. Syntax Error Demo</option>
+                <option value="7">7. Semantic Error Demo</option>
+            </select>
+            <button onclick="loadSample()" class="bg-[#313244] hover:bg-[#45475a] text-xs font-semibold px-3 py-1.5 rounded-md transition duration-150">
+                <i class="fa-solid fa-download mr-1"></i> Load
+            </button>
+        </div>
+    </header>
+
+    <!-- Toolbar -->
+    <div class="bg-[#181825] border-b border-[#313244] px-4 py-2 flex flex-wrap items-center justify-between gap-2 shrink-0">
+        <div class="flex items-center space-x-2">
+            <button onclick="runPipeline('ALL')" class="bg-[#a6e3a1] hover:bg-[#94e2d5] text-[#11111b] font-bold text-xs px-4 py-2 rounded-md flex items-center transition shadow-sm">
+                <i class="fa-solid fa-play mr-2"></i> Compile All
+            </button>
+            <div class="h-5 w-[1px] bg-[#313244] mx-1"></div>
+            <button onclick="runPipeline('LEX')" class="bg-[#313244] hover:bg-[#45475a] text-xs px-3 py-2 rounded-md font-medium transition">1. Lexical</button>
+            <button onclick="runPipeline('PARSE')" class="bg-[#313244] hover:bg-[#45475a] text-xs px-3 py-2 rounded-md font-medium transition">2. Syntax</button>
+            <button onclick="runPipeline('AST')" class="bg-[#313244] hover:bg-[#45475a] text-xs px-3 py-2 rounded-md font-medium transition">3. AST</button>
+            <button onclick="runPipeline('SEMANTIC')" class="bg-[#313244] hover:bg-[#45475a] text-xs px-3 py-2 rounded-md font-medium transition">4. Semantic</button>
+            <button onclick="runPipeline('TAC')" class="bg-[#313244] hover:bg-[#45475a] text-xs px-3 py-2 rounded-md font-medium transition">5. TAC</button>
+        </div>
+        <div>
+            <button onclick="clearEditor()" class="text-xs text-[#f38ba8] hover:bg-[#f38ba8]/10 px-3 py-2 rounded-md font-medium transition">
+                <i class="fa-solid fa-trash-can mr-1"></i> Clear Code
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Content Work Area (Split View) -->
+    <div class="flex-1 flex flex-col md:flex-row overflow-hidden">
+        
+        <!-- Left Side: Source Code Editor -->
+        <div class="w-full md:w-1/2 border-r border-[#313244] flex flex-col h-1/2 md:h-full">
+            <div class="bg-[#181825] px-4 py-1.5 border-b border-[#313244] flex justify-between items-center text-xs text-[#a6adc8] font-medium">
+                <span><i class="fa-solid fa-[#11111b] fa-file-code mr-1"></i> devlang_source.dvl</span>
+                <span id="lineColCount">Ln 1, Col 1</span>
+            </div>
+            <div class="editor-container flex-1 overflow-hidden">
+                <div id="lineNumbers" class="line-numbers">1</div>
+                <textarea id="codeEditor" class="editor-textarea" spellcheck="false" placeholder="Type DevLang code here..."></textarea>
+            </div>
+        </div>
+
+        <!-- Right Side: Pipeline Visualizer Tabs -->
+        <div class="w-full md:w-1/2 flex flex-col h-1/2 md:h-full bg-[#181825]">
+            <!-- Tabs Navigation -->
+            <div class="flex border-b border-[#313244] bg-[#11111b] text-xs overflow-x-auto">
+                <button onclick="switchTab('tokens')" id="tab-tokens" class="tab-btn px-4 py-2.5 font-medium text-[#a6adc8] hover:text-[#cdd6f4] transition active">Tokens</button>
+                <button onclick="switchTab('ast')" id="tab-ast" class="tab-btn px-4 py-2.5 font-medium text-[#a6adc8] hover:text-[#cdd6f4] transition">AST View</button>
+                <button onclick="switchTab('symtable')" id="tab-symtable" class="tab-btn px-4 py-2.5 font-medium text-[#a6adc8] hover:text-[#cdd6f4] transition">Symbol Table</button>
+                <button onclick="switchTab('tac')" id="tab-tac" class="tab-btn px-4 py-2.5 font-medium text-[#a6adc8] hover:text-[#cdd6f4] transition">TAC Code</button>
+                <button onclick="switchTab('grammar')" id="tab-grammar" class="tab-btn px-4 py-2.5 font-medium text-[#a6adc8] hover:text-[#cdd6f4] transition">Grammar Rules</button>
+            </div>
+
+            <!-- Tab Contents -->
+            <div class="flex-1 overflow-y-auto p-4 bg-[#1e1e2e]">
+                
+                <!-- Tab 1: Tokens -->
+                <div id="content-tokens" class="tab-content">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead>
+                            <tr class="bg-[#181825] text-[#89b4fa] border-b border-[#313244]">
+                                <th class="p-2 border border-[#313244]">#</th>
+                                <th class="p-2 border border-[#313244]">Token Type</th>
+                                <th class="p-2 border border-[#313244]">Lexeme / Value</th>
+                                <th class="p-2 border border-[#313244]">Line</th>
+                                <th class="p-2 border border-[#313244]">Col</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tokensTableBody">
+                            <tr><td colspan="5" class="p-4 text-center text-[#585b70]">Run Lexical Analysis to inspect tokens.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Tab 2: AST View -->
+                <div id="content-ast" class="tab-content hidden">
+                    <pre id="astOutput" class="font-mono text-xs text-[#a6e3a1] bg-[#11111b] p-4 rounded-lg border border-[#313244] whitespace-pre overflow-x-auto">Run Syntax/AST Analysis to generate Abstract Syntax Tree.</pre>
+                </div>
+
+                <!-- Tab 3: Symbol Table -->
+                <div id="content-symtable" class="tab-content hidden">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead>
+                            <tr class="bg-[#181825] text-[#f9e2af] border-b border-[#313244]">
+                                <th class="p-2 border border-[#313244]">Name</th>
+                                <th class="p-2 border border-[#313244]">Type</th>
+                                <th class="p-2 border border-[#313244]">Scope Level</th>
+                                <th class="p-2 border border-[#313244]">Initialized</th>
+                                <th class="p-2 border border-[#313244]">Line Declared</th>
+                            </tr>
+                        </thead>
+                        <tbody id="symTableBody">
+                            <tr><td colspan="5" class="p-4 text-center text-[#585b70]">Run Semantic Analysis to populate Symbol Table.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Tab 4: TAC -->
+                <div id="content-tac" class="tab-content hidden">
+                    <pre id="tacOutput" class="font-mono text-xs text-[#89b4fa] bg-[#11111b] p-4 rounded-lg border border-[#313244] whitespace-pre overflow-x-auto">Run TAC Intermediate Code Generator to see 3-Address Code.</pre>
+                </div>
+
+                <!-- Tab 5: Grammar Rules -->
+                <div id="content-grammar" class="tab-content hidden text-xs text-[#a6adc8] space-y-3 font-mono">
+                    <div class="bg-[#11111b] p-3 rounded border border-[#313244]">
+                        <h3 class="font-bold text-[#89b4fa] mb-1">EBNF Grammar Rules (LL(1)):</h3>
+                        <p>&lt;program&gt; ::= "START" &lt;statement_list&gt; "END"</p>
+                        <p>&lt;statement&gt; ::= &lt;var_decl&gt; | &lt;assignment&gt; | &lt;if_stmt&gt; | &lt;while_stmt&gt; | &lt;print_stmt&gt;</p>
+                        <p>&lt;var_decl&gt; ::= ("int" | "float") IDENTIFIER [ "=" &lt;expr&gt; ] ";"</p>
+                        <p>&lt;assignment&gt; ::= IDENTIFIER "=" &lt;expr&gt; ";"</p>
+                        <p>&lt;if_stmt&gt; ::= "if" "(" &lt;expr&gt; ")" "{" &lt;stmt_list&gt; "}" [ "else" "{" &lt;stmt_list&gt; "}" ]</p>
+                        <p>&lt;while_stmt&gt; ::= "while" "(" &lt;expr&gt; ")" "{" &lt;stmt_list&gt; "}"</p>
+                        <p>&lt;print_stmt&gt; ::= "print" "(" &lt;expr&gt; ")" ";"</p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Bottom Panel: Real-time Status and Console Output -->
+    <div class="h-44 bg-[#11111b] border-t border-[#313244] flex flex-col shrink-0">
+        <div id="statusBanner" class="px-4 py-1.5 text-xs font-bold bg-[#313244] text-[#cdd6f4] flex justify-between items-center">
+            <span id="statusText"><i class="fa-solid fa-info-circle mr-1"></i> Ready for compilation.</span>
+            <span id="compilerPhaseTag" class="text-[10px] bg-[#1e1e2e] px-2 py-0.5 rounded text-[#a6adc8]">IDLE</span>
+        </div>
+        <div class="flex-1 p-3 font-mono text-xs overflow-y-auto bg-[#0d0e15]" id="consoleLog">
+            <div class="text-[#585b70]">[DevLang Compiler v1.0.0 Ready]</div>
+        </div>
+    </div>
+
+    <!-- CLIENT-SIDE COMPILER ENGINE SCRIPT -->
+    <script>
+        // --- 1. SAMPLES DATABASE ---
+        const SAMPLES = {
+            "1": `START\nint x = 5;\nprint(x);\nEND`,
+            "2": `START\nint a = 10;\nint b = 20;\nint c = a + b * 2;\nprint(c);\nEND`,
+            "3": `START\nint x = 10;\nif (x > 5) {\n    x = x - 1;\n} else {\n    x = 0;\n}\nprint(x);\nEND`,
+            "4": `START\nint count = 3;\nwhile (count > 0) {\n    print(count);\n    count = count - 1;\n}\nEND`,
+            "5": `START\nint @invalid_var = 10;\nEND`,
+            "6": `START\nint a = ;\nEND`,
+            "7": `START\nint x = 10;\nfloat y = 5.5;\nx = y;\nEND`
+        };
+
+        // --- 2. LEXER (Phase 1) ---
+        const TokenType = {
+            START: 'START', END: 'END', INT_KW: 'int', FLOAT_KW: 'float',
+            IF: 'if', ELSE: 'else', WHILE: 'while', PRINT: 'print',
+            IDENTIFIER: 'IDENTIFIER', INT_LITERAL: 'INT_LITERAL', FLOAT_LITERAL: 'FLOAT_LITERAL',
+            ASSIGN: '=', PLUS: '+', MINUS: '-', MULT: '*', DIV: '/', MOD: '%',
+            EQ: '==', NEQ: '!=', LT: '<', LTE: '<=', GT: '>', GTE: '>=',
+            SEMI: ';', LPAREN: '(', RPAREN: ')', LBRACE: '{', RBRACE: '}',
+            EOF: 'EOF'
+        };
+
+        class Token {
+            constructor(type, value, line, column) {
+                this.type = type;
+                this.value = value;
+                this.line = line;
+                this.column = column;
+            }
+        }
+
+        class Lexer {
+            constructor(source) {
+                this.source = source;
+                this.pos = 0;
+                this.line = 1;
+                this.col = 1;
+                this.tokens = [];
+                this.errors = [];
+            }
+
+            tokenize() {
+                const keywords = {'START': TokenType.START, 'END': TokenType.END, 'int': TokenType.INT_KW, 
+                                  'float': TokenType.FLOAT_KW, 'if': TokenType.IF, 'else': TokenType.ELSE, 
+                                  'while': TokenType.WHILE, 'print': TokenType.PRINT};
+
+                while (this.pos < this.source.length) {
+                    let ch = this.source[this.pos];
+
+                    if (ch === '\n') { this.line++; this.col = 1; this.pos++; continue; }
+                    if (/\s/.test(ch)) { this.col++; this.pos++; continue; }
+
+                    // Single-line Comments
+                    if (ch === '/' && this.source[this.pos + 1] === '/') {
+                        while (this.pos < this.source.length && this.source[this.pos] !== '\n') this.pos++;
+                        continue;
+                    }
+
+                    // Identifiers / Keywords
+                    if (/[a-zA-Z_]/.test(ch)) {
+                        let startCol = this.col;
+                        let str = '';
+                        while (this.pos < this.source.length && /[a-zA-Z0-9_]/.test(this.source[this.pos])) {
+                            str += this.source[this.pos];
+                            this.pos++; this.col++;
+                        }
+                        let type = keywords[str] || TokenType.IDENTIFIER;
+                        this.tokens.push(new Token(type, str, this.line, startCol));
+                        continue;
+                    }
+
+                    // Numbers (int/float)
+                    if (/[0-9]/.test(ch)) {
+                        let startCol = this.col;
+                        let numStr = '';
+                        let isFloat = false;
+                        while (this.pos < this.source.length && /[0-9\.]/.test(this.source[this.pos])) {
+                            if (this.source[this.pos] === '.') {
+                                if (isFloat) break;
+                                isFloat = true;
+                            }
+                            numStr += this.source[this.pos];
+                            this.pos++; this.col++;
+                        }
+                        let type = isFloat ? TokenType.FLOAT_LITERAL : TokenType.INT_LITERAL;
+                        this.tokens.push(new Token(type, isFloat ? parseFloat(numStr) : parseInt(numStr), this.line, startCol));
+                        continue;
+                    }
+
+                    // Two-character operators
+                    let next2 = this.source.substr(this.pos, 2);
+                    if (['==', '!=', '<=', '>='].includes(next2)) {
+                        let typeMap = {'==': TokenType.EQ, '!=': TokenType.NEQ, '<=': TokenType.LTE, '>=': TokenType.GTE};
+                        this.tokens.push(new Token(typeMap[next2], next2, this.line, this.col));
+                        this.pos += 2; this.col += 2;
+                        continue;
+                    }
+
+                    // Single-character operators & delimiters
+                    let singleMap = {
+                        '=': TokenType.ASSIGN, '+': TokenType.PLUS, '-': TokenType.MINUS,
+                        '*': TokenType.MULT, '/': TokenType.DIV, '%': TokenType.MOD,
+                        '<': TokenType.LT, '>': TokenType.GT, ';': TokenType.SEMI,
+                        '(': TokenType.LPAREN, ')': TokenType.RPAREN, '{': TokenType.LBRACE, '}': TokenType.RBRACE
+                    };
+
+                    if (singleMap[ch]) {
+                        this.tokens.push(new Token(singleMap[ch], ch, this.line, this.col));
+                        this.pos++; this.col++;
+                        continue;
+                    }
+
+                    // Lexical Error
+                    this.errors.push(`[LEXICAL_ERROR] Line ${this.line}, Col ${this.col}: Unexpected character '${ch}'`);
+                    this.pos++; this.col++;
+                }
+
+                this.tokens.push(new Token(TokenType.EOF, 'EOF', this.line, this.col));
+                return { tokens: this.tokens, errors: this.errors };
+            }
+        }
+
+        // --- 3. PARSER & AST (Phase 2) ---
+        class ASTNode { constructor(type) { this.nodeType = type; } }
+        class ProgramNode extends ASTNode { constructor(statements) { super('Program'); this.statements = statements; } }
+        class VarDeclNode extends ASTNode { constructor(dataType, name, initExpr) { super('VarDecl'); this.dataType = dataType; this.name = name; this.initExpr = initExpr; } }
+        class AssignNode extends ASTNode { constructor(name, expr) { super('Assign'); this.name = name; this.expr = expr; } }
+        class BinaryOpNode extends ASTNode { constructor(left, op, right) { super('BinaryOp'); this.left = left; this.op = op; this.right = right; } }
+        class LiteralNode extends ASTNode { constructor(val, dataType) { super('Literal'); this.value = val; this.dataType = dataType; } }
+        class VarAccessNode extends ASTNode { constructor(name) { super('VarAccess'); this.name = name; } }
+        class IfNode extends ASTNode { constructor(cond, thenBody, elseBody) { super('If'); this.cond = cond; this.thenBody = thenBody; this.elseBody = elseBody; } }
+        class WhileNode extends ASTNode { constructor(cond, body) { super('While'); this.cond = cond; this.body = body; } }
+        class PrintNode extends ASTNode { constructor(expr) { super('Print'); this.expr = expr; } }
+
+        class Parser {
+            constructor(tokens) {
+                this.tokens = tokens;
+                this.curr = 0;
+                this.errors = [];
+            }
+
+            peek() { return this.tokens[this.curr]; }
+            consume(type) {
+                let tok = this.peek();
+                if (tok.type === type) { this.curr++; return tok; }
+                this.errors.push(`[SYNTAX_ERROR] Line ${tok.line}, Col ${tok.column}: Expected token '${type}', got '${tok.value}'`);
+                return null;
+            }
+
+            parse() {
+                if (!this.consume(TokenType.START)) return { ast: null, errors: this.errors };
+                let stmts = [];
+                while (this.peek().type !== TokenType.END && this.peek().type !== TokenType.EOF) {
+                    let stmt = this.parseStatement();
+                    if (stmt) stmts.push(stmt);
+                    else this.synchronize();
+                }
+                this.consume(TokenType.END);
+                return { ast: new ProgramNode(stmts), errors: this.errors };
+            }
+
+            synchronize() {
+                this.curr++;
+                while (this.peek().type !== TokenType.EOF) {
+                    if (this.tokens[this.curr - 1].type === TokenType.SEMI) return;
+                    if ([TokenType.INT_KW, TokenType.FLOAT_KW, TokenType.IF, TokenType.WHILE, TokenType.PRINT].includes(this.peek().type)) return;
+                    this.curr++;
+                }
+            }
+
+            parseStatement() {
+                let tok = this.peek();
+                if (tok.type === TokenType.INT_KW || tok.type === TokenType.FLOAT_KW) return this.parseVarDecl();
+                if (tok.type === TokenType.IDENTIFIER) return this.parseAssign();
+                if (tok.type === TokenType.IF) return this.parseIf();
+                if (tok.type === TokenType.WHILE) return this.parseWhile();
+                if (tok.type === TokenType.PRINT) return this.parsePrint();
+                
+                this.errors.push(`[SYNTAX_ERROR] Line ${tok.line}, Col ${tok.column}: Invalid statement starting with '${tok.value}'`);
+                return null;
+            }
+
+            parseVarDecl() {
+                let typeTok = this.peek();
+                this.curr++;
+                let idTok = this.consume(TokenType.IDENTIFIER);
+                if (!idTok) return null;
+                let init = null;
+                if (this.peek().type === TokenType.ASSIGN) {
+                    this.curr++;
+                    init = this.parseExpr();
+                }
+                this.consume(TokenType.SEMI);
+                return new VarDeclNode(typeTok.value, idTok.value, init);
+            }
+
+            parseAssign() {
+                let idTok = this.consume(TokenType.IDENTIFIER);
+                this.consume(TokenType.ASSIGN);
+                let expr = this.parseExpr();
+                this.consume(TokenType.SEMI);
+                return new AssignNode(idTok ? idTok.value : '?', expr);
+            }
+
+            parseIf() {
+                this.consume(TokenType.IF);
+                this.consume(TokenType.LPAREN);
+                let cond = this.parseExpr();
+                this.consume(TokenType.RPAREN);
+                this.consume(TokenType.LBRACE);
+                let thenBody = this.parseBlock();
+                this.consume(TokenType.RBRACE);
+                let elseBody = null;
+                if (this.peek().type === TokenType.ELSE) {
+                    this.curr++;
+                    this.consume(TokenType.LBRACE);
+                    elseBody = this.parseBlock();
+                    this.consume(TokenType.RBRACE);
+                }
+                return new IfNode(cond, thenBody, elseBody);
+            }
+
+            parseWhile() {
+                this.consume(TokenType.WHILE);
+                this.consume(TokenType.LPAREN);
+                let cond = this.parseExpr();
+                this.consume(TokenType.RPAREN);
+                this.consume(TokenType.LBRACE);
+                let body = this.parseBlock();
+                this.consume(TokenType.RBRACE);
+                return new WhileNode(cond, body);
+            }
+
+            parseBlock() {
+                let stmts = [];
+                while (this.peek().type !== TokenType.RBRACE && this.peek().type !== TokenType.EOF) {
+                    let stmt = this.parseStatement();
+                    if (stmt) stmts.push(stmt);
+                    else this.synchronize();
+                }
+                return stmts;
+            }
+
+            parsePrint() {
+                this.consume(TokenType.PRINT);
+                this.consume(TokenType.LPAREN);
+                let expr = this.parseExpr();
+                this.consume(TokenType.RPAREN);
+                this.consume(TokenType.SEMI);
+                return new PrintNode(expr);
+            }
+
+            parseExpr() { return this.parseRelational(); }
+
+            parseRelational() {
+                let left = this.parseAdditive();
+                let relOps = [TokenType.EQ, TokenType.NEQ, TokenType.LT, TokenType.LTE, TokenType.GT, TokenType.GTE];
+                if (relOps.includes(this.peek().type)) {
+                    let op = this.peek().value;
+                    this.curr++;
+                    let right = this.parseAdditive();
+                    return new BinaryOpNode(left, op, right);
+                }
+                return left;
+            }
+
+            parseAdditive() {
+                let left = this.parseMultiplicative();
+                while ([TokenType.PLUS, TokenType.MINUS].includes(this.peek().type)) {
+                    let op = this.peek().value;
+                    this.curr++;
+                    let right = this.parseMultiplicative();
+                    left = new BinaryOpNode(left, op, right);
+                }
+                return left;
+            }
+
+            parseMultiplicative() {
+                let left = this.parsePrimary();
+                while ([TokenType.MULT, TokenType.DIV, TokenType.MOD].includes(this.peek().type)) {
+                    let op = this.peek().value;
+                    this.curr++;
+                    let right = this.parsePrimary();
+                    left = new BinaryOpNode(left, op, right);
+                }
+                return left;
+            }
+
+            parsePrimary() {
+                let tok = this.peek();
+                if (tok.type === TokenType.INT_LITERAL) { this.curr++; return new LiteralNode(tok.value, 'int'); }
+                if (tok.type === TokenType.FLOAT_LITERAL) { this.curr++; return new LiteralNode(tok.value, 'float'); }
+                if (tok.type === TokenType.IDENTIFIER) { this.curr++; return new VarAccessNode(tok.value); }
+                if (tok.type === TokenType.LPAREN) {
+                    this.curr++;
+                    let expr = this.parseExpr();
+                    this.consume(TokenType.RPAREN);
+                    return expr;
+                }
+                this.errors.push(`[SYNTAX_ERROR] Line ${tok.line}, Col ${tok.column}: Expected expression, got '${tok.value}'`);
+                this.curr++;
+                return new LiteralNode(0, 'int');
+            }
+        }
+
+        // --- 4. SEMANTIC ANALYZER & SYMBOL TABLE (Phase 3) ---
+        class SymbolTable {
+            constructor() {
+                this.scopes = [{}];
+                this.allSymbols = [];
+            }
+            enterScope() { this.scopes.push({}); }
+            exitScope() { this.scopes.pop(); }
+            insert(name, type, line) {
+                let current = this.scopes[this.scopes.length - 1];
+                if (current[name]) return false;
+                let symbol = { name, type, scopeLevel: this.scopes.length - 1, initialized: true, line };
+                current[name] = symbol;
+                this.allSymbols.push(symbol);
+                return true;
+            }
+            lookup(name) {
+                for (let i = this.scopes.length - 1; i >= 0; i--) {
+                    if (this.scopes[i][name]) return this.scopes[i][name];
+                }
+                return null;
+            }
+        }
+
+        class SemanticAnalyzer {
+            constructor() {
+                this.symTable = new SymbolTable();
+                this.errors = [];
+            }
+
+            analyze(ast) {
+                if (!ast) return { errors: this.errors, symTable: this.symTable };
+                this.visit(ast);
+                return { errors: this.errors, symTable: this.symTable };
+            }
+
+            visit(node) {
+                if (!node) return 'unknown';
+                switch (node.nodeType) {
+                    case 'Program':
+                        node.statements.forEach(s => this.visit(s));
+                        return 'void';
+                    case 'VarDecl':
+                        if (node.initExpr) {
+                            let initType = this.visit(node.initExpr);
+                            if (node.dataType === 'int' && initType === 'float') {
+                                this.errors.push(`[SEMANTIC_ERROR] Implicit coercion warning/error: Cannot assign float to int variable '${node.name}'`);
+                            }
+                        }
+                        if (!this.symTable.insert(node.name, node.dataType, 0)) {
+                            this.errors.push(`[SEMANTIC_ERROR] Redeclaration error: Variable '${node.name}' already declared in current scope.`);
+                        }
+                        return 'void';
+                    case 'Assign':
+                        let sym = this.symTable.lookup(node.name);
+                        if (!sym) {
+                            this.errors.push(`[SEMANTIC_ERROR] Undeclared variable error: '${node.name}' used before declaration.`);
+                            return 'void';
+                        }
+                        let rhsType = this.visit(node.expr);
+                        if (sym.type === 'int' && rhsType === 'float') {
+                            this.errors.push(`[SEMANTIC_ERROR] Type mismatch: Cannot assign float expression to int variable '${node.name}'`);
+                        }
+                        return 'void';
+                    case 'VarAccess':
+                        let varSym = this.symTable.lookup(node.name);
+                        if (!varSym) {
+                            this.errors.push(`[SEMANTIC_ERROR] Undeclared variable error: '${node.name}'`);
+                            return 'unknown';
+                        }
+                        return varSym.type;
+                    case 'Literal':
+                        return node.dataType;
+                    case 'BinaryOp':
+                        let lType = this.visit(node.left);
+                        let rType = this.visit(node.right);
+                        if (['>', '<', '>=', '<=', '==', '!='].includes(node.op)) return 'boolean';
+                        return (lType === 'float' || rType === 'float') ? 'float' : 'int';
+                    case 'If':
+                        this.visit(node.cond);
+                        this.symTable.enterScope();
+                        node.thenBody.forEach(s => this.visit(s));
+                        this.symTable.exitScope();
+                        if (node.elseBody) {
+                            this.symTable.enterScope();
+                            node.elseBody.forEach(s => this.visit(s));
+                            this.symTable.exitScope();
+                        }
+                        return 'void';
+                    case 'While':
+                        this.visit(node.cond);
+                        this.symTable.enterScope();
+                        node.body.forEach(s => this.visit(s));
+                        this.symTable.exitScope();
+                        return 'void';
+                    case 'Print':
+                        this.visit(node.expr);
+                        return 'void';
+                }
+            }
+        }
+
+        // --- 5. TAC GENERATOR (Phase 4) ---
+        class TACGenerator {
+            constructor() {
+                this.instructions = [];
+                this.tempCount = 1;
+                this.labelCount = 1;
+            }
+
+            newTemp() { return `t${this.tempCount++}`; }
+            newLabel() { return `L${this.labelCount++}`; }
+            emit(code) { this.instructions.push(code); }
+
+            generate(ast) {
+                if (ast) this.visit(ast);
+                return this.instructions;
+            }
+
+            visit(node) {
+                if (!node) return '';
+                switch (node.nodeType) {
+                    case 'Program':
+                        node.statements.forEach(s => this.visit(s));
+                        return '';
+                    case 'VarDecl':
+                        if (node.initExpr) {
+                            let place = this.visit(node.initExpr);
+                            this.emit(`${node.name} = ${place}`);
+                        }
+                        return node.name;
+                    case 'Assign':
+                        let place = this.visit(node.expr);
+                        this.emit(`${node.name} = ${place}`);
+                        return node.name;
+                    case 'Literal':
+                        return node.value;
+                    case 'VarAccess':
+                        return node.name;
+                    case 'BinaryOp':
+                        let left = this.visit(node.left);
+                        let right = this.visit(node.right);
+                        let temp = this.newTemp();
+                        this.emit(`${temp} = ${left} ${node.op} ${right}`);
+                        return temp;
+                    case 'Print':
+                        let pVal = this.visit(node.expr);
+                        this.emit(`PRINT ${pVal}`);
+                        return '';
+                    case 'If':
+                        let cond = this.visit(node.cond);
+                        let elseLabel = this.newLabel();
+                        let endLabel = this.newLabel();
+                        this.emit(`IF_FALSE ${cond} GOTO ${node.elseBody ? elseLabel : endLabel}`);
+                        node.thenBody.forEach(s => this.visit(s));
+                        if (node.elseBody) {
+                            this.emit(`GOTO ${endLabel}`);
+                            this.emit(`LABEL ${elseLabel}:`);
+                            node.elseBody.forEach(s => this.visit(s));
+                        }
+                        this.emit(`LABEL ${endLabel}:`);
+                        return '';
+                    case 'While':
+                        let startLoop = this.newLabel();
+                        let exitLoop = this.newLabel();
+                        this.emit(`LABEL ${startLoop}:`);
+                        let wCond = this.visit(node.cond);
+                        this.emit(`IF_FALSE ${wCond} GOTO ${exitLoop}`);
+                        node.body.forEach(s => this.visit(s));
+                        this.emit(`GOTO ${startLoop}`);
+                        this.emit(`LABEL ${exitLoop}:`);
+                        return '';
+                }
+            }
+        }
+
+        // --- 6. AST FORMATTER FOR GUI ---
+        function formatAST(node, indent = '') {
+            if (!node) return '';
+            let str = indent + node.nodeType;
+            if (node.name) str += ` (name: '${node.name}')`;
+            if (node.dataType) str += ` (type: '${node.dataType}')`;
+            if (node.value !== undefined) str += ` (val: ${node.value})`;
+            if (node.op) str += ` (op: '${node.op}')`;
+            str += '\n';
+
+            let childIndent = indent + '  └── ';
+            if (node.statements) node.statements.forEach(s => str += formatAST(s, childIndent));
+            if (node.initExpr) str += formatAST(node.initExpr, childIndent);
+            if (node.expr) str += formatAST(node.expr, childIndent);
+            if (node.left) str += formatAST(node.left, childIndent);
+            if (node.right) str += formatAST(node.right, childIndent);
+            if (node.cond) str += formatAST(node.cond, childIndent);
+            if (node.thenBody) node.thenBody.forEach(s => str += formatAST(s, childIndent));
+            if (node.elseBody) node.elseBody.forEach(s => str += formatAST(s, childIndent));
+            if (node.body) node.body.forEach(s => str += formatAST(s, childIndent));
+            return str;
+        }
+
+        // --- 7. IDE PIPELINE CONTROLLER ---
+        const codeEditor = document.getElementById('codeEditor');
+        const lineNumbers = document.getElementById('lineNumbers');
+        const consoleLog = document.getElementById('consoleLog');
+        const statusBanner = document.getElementById('statusBanner');
+        const statusText = document.getElementById('statusText');
+        const compilerPhaseTag = document.getElementById('compilerPhaseTag');
+
+        // Line Numbers Sync
+        codeEditor.addEventListener('input', updateLineNumbers);
+        codeEditor.addEventListener('scroll', () => {
+            lineNumbers.scrollTop = codeEditor.scrollTop;
+        });
+
+        function updateLineNumbers() {
+            const lines = codeEditor.value.split('\n').length;
+            lineNumbers.innerHTML = Array.from({ length: lines }, (_, i) => i + 1).join('<br>');
+            
+            // Cursor Line/Col update
+            const pos = codeEditor.selectionStart;
+            const textBefore = codeEditor.value.substring(0, pos);
+            const line = textBefore.split('\n').length;
+            const col = pos - textBefore.lastIndexOf('\n');
+            document.getElementById('lineColCount').innerText = `Ln ${line}, Col ${col}`;
+        }
+        codeEditor.addEventListener('keyup', updateLineNumbers);
+        codeEditor.addEventListener('click', updateLineNumbers);
+
+        function logToConsole(msg, clear = false) {
+            if (clear) consoleLog.innerHTML = '';
+            const div = document.createElement('div');
+            div.className = msg.includes('ERROR') ? 'text-[#f38ba8]' : (msg.includes('✓') ? 'text-[#a6e3a1]' : 'text-[#cdd6f4]');
+            div.innerText = msg;
+            consoleLog.appendChild(div);
+            consoleLog.scrollTop = consoleLog.scrollHeight;
+        }
+
+        function setStatus(msg, isError = false, phase = 'EXEC') {
+            statusText.innerHTML = isError ? `<i class="fa-solid fa-triangle-exclamation mr-1"></i> ${msg}` : `<i class="fa-solid fa-circle-check mr-1"></i> ${msg}`;
+            statusBanner.className = `px-4 py-1.5 text-xs font-bold flex justify-between items-center ${isError ? 'bg-[#f38ba8] text-[#11111b]' : 'bg-[#a6e3a1] text-[#11111b]'}`;
+            compilerPhaseTag.innerText = phase;
+        }
+
+        function runPipeline(targetStage) {
+            const source = codeEditor.value;
+            logToConsole(`--- Starting Pipeline [Target: ${targetStage}] ---`, true);
+
+            // Phase 1: Lexer
+            const lexer = new Lexer(source);
+            const lexRes = lexer.tokenize();
+            
+            // Render Tokens
+            const tokensTbody = document.getElementById('tokensTableBody');
+            tokensTbody.innerHTML = lexRes.tokens.map((t, i) => `
+                <tr class="hover:bg-[#313244]/50 border-b border-[#313244]/30">
+                    <td class="p-1.5 border border-[#313244] text-[#585b70]">${i + 1}</td>
+                    <td class="p-1.5 border border-[#313244] font-mono text-[#cba6f7]">${t.type}</td>
+                    <td class="p-1.5 border border-[#313244] font-mono text-[#f9e2af]">${t.value}</td>
+                    <td class="p-1.5 border border-[#313244] text-center">${t.line}</td>
+                    <td class="p-1.5 border border-[#313244] text-center">${t.column}</td>
+                </tr>
+            `).join('');
+
+            if (lexRes.errors.length > 0) {
+                lexRes.errors.forEach(e => logToConsole(e));
+                setStatus('Lexical Error Detected!', true, 'LEXICAL');
+                switchTab('tokens');
+                return;
+            }
+            logToConsole(`✓ Lexical Analysis Completed (${lexRes.tokens.length} tokens)`);
+            if (targetStage === 'LEX') { setStatus('✓ Lexical Analysis Successful', false, 'LEXICAL'); switchTab('tokens'); return; }
+
+            // Phase 2: Syntax Parser
+            const parser = new Parser(lexRes.tokens);
+            const parseRes = parser.parse();
+
+            if (parseRes.errors.length > 0) {
+                parseRes.errors.forEach(e => logToConsole(e));
+                setStatus('Syntax Error Detected!', true, 'SYNTAX');
+                return;
+            }
+            logToConsole('✓ Syntax Analysis & AST Generation Successful');
+            document.getElementById('astOutput').innerText = formatAST(parseRes.ast);
+            if (targetStage === 'PARSE' || targetStage === 'AST') {
+                setStatus('✓ Syntax & AST Generated Successfully', false, 'AST');
+                switchTab('ast');
+                return;
+            }
+
+            // Phase 3: Semantic Analysis
+            const semAnalyzer = new SemanticAnalyzer();
+            const semRes = semAnalyzer.analyze(parseRes.ast);
+
+            // Render Symbol Table
+            const symTbody = document.getElementById('symTableBody');
+            symTbody.innerHTML = semRes.symTable.allSymbols.map(s => `
+                <tr class="hover:bg-[#313244]/50 border-b border-[#313244]/30">
+                    <td class="p-1.5 border border-[#313244] font-mono text-[#89b4fa]">${s.name}</td>
+                    <td class="p-1.5 border border-[#313244] font-mono text-[#f9e2af]">${s.type}</td>
+                    <td class="p-1.5 border border-[#313244] text-center">${s.scopeLevel}</td>
+                    <td class="p-1.5 border border-[#313244] text-center text-[#a6e3a1]">true</td>
+                    <td class="p-1.5 border border-[#313244] text-center">${s.line}</td>
+                </tr>
+            `).join('');
+
+            if (semRes.errors.length > 0) {
+                semRes.errors.forEach(e => logToConsole(e));
+                setStatus('Semantic Error Detected!', true, 'SEMANTIC');
+                switchTab('symtable');
+                return;
+            }
+            logToConsole('✓ Semantic Analysis & Scope Rules Passed');
+            if (targetStage === 'SEMANTIC') { setStatus('✓ Semantic Analysis Passed', false, 'SEMANTIC'); switchTab('symtable'); return; }
+
+            // Phase 4: TAC Generation
+            const tacGen = new TACGenerator();
+            const tacRes = tacGen.generate(parseRes.ast);
+            document.getElementById('tacOutput').innerText = tacRes.length ? tacRes.join('\n') : '// No intermediate code emitted.';
+            
+            logToConsole('✓ Three-Address Code (TAC) Generated Successfully');
+            setStatus('✓ Compilation Pipeline Successful!', false, 'SUCCESS');
+            if (targetStage === 'ALL' || targetStage === 'TAC') switchTab('tac');
+        }
+
+        // --- 8. UI EVENT HANDLERS ---
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            document.getElementById(`content-${tabName}`).classList.remove('hidden');
+        }
+
+        function loadSample() {
+            const id = document.getElementById('sampleSelect').value;
+            if (SAMPLES[id]) {
+                codeEditor.value = SAMPLES[id];
+                updateLineNumbers();
+                logToConsole(`Loaded sample script #${id}`, true);
+                setStatus('Sample program loaded.', false, 'LOAD');
+            }
+        }
+
+        function clearEditor() {
+            codeEditor.value = '';
+            updateLineNumbers();
+            document.getElementById('tokensTableBody').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-[#585b70]">Run Lexical Analysis to inspect tokens.</td></tr>';
+            document.getElementById('astOutput').innerText = 'Run Syntax/AST Analysis to generate Abstract Syntax Tree.';
+            document.getElementById('symTableBody').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-[#585b70]">Run Semantic Analysis to populate Symbol Table.</td></tr>';
+            document.getElementById('tacOutput').innerText = 'Run TAC Intermediate Code Generator to see 3-Address Code.';
+            logToConsole('Editor cleared.', true);
+            setStatus('Editor cleared.', false, 'IDLE');
+        }
+
+        // Initialize with default sample
+        window.onload = () => {
+            loadSample();
+        };
+    </script>
+</body>
+</html>

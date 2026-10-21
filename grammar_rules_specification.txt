@@ -1,0 +1,51 @@
+======================================================================
+                  DEVLANG EBNF GRAMMAR SPECIFICATION
+======================================================================
+
+<program>           ::= "START" <statement_list> "END"
+
+<statement_list>    ::= { <statement> }
+
+<statement>         ::= <var_decl>
+                      | <assignment>
+                      | <if_stmt>
+                      | <while_stmt>
+                      | <print_stmt>
+
+<var_decl>          ::= ("int" | "float") IDENTIFIER [ "=" <expr> ] ";"
+
+<assignment>        ::= IDENTIFIER "=" <expr> ";"
+
+<if_stmt>           ::= "if" "(" <expr> ")" "{" <statement_list> "}" 
+                        [ "else" "{" <statement_list> "}" ]
+
+<while_stmt>        ::= "while" "(" <expr> ")" "{" <statement_list> "}"
+
+<print_stmt>        ::= "print" "(" <expr> ")" ";"
+
+----------------------------------------------------------------------
+EXPRESSIONS & OPERATOR PRECEDENCE
+----------------------------------------------------------------------
+
+<expr>              ::= <relational>
+
+<relational>        ::= <additive> [ ("==" | "!=" | "<" | "<=" | ">" | ">=") <additive> ]
+
+<additive>          ::= <multiplicative> { ("+" | "-") <multiplicative> }
+
+<multiplicative>    ::= <primary> { ("*" | "/" | "%") <primary> }
+
+<primary>           ::= INT_LITERAL
+                      | FLOAT_LITERAL
+                      | IDENTIFIER
+                      | "(" <expr> ")"
+
+----------------------------------------------------------------------
+LEXICAL TOKENS & ATOMIC ELEMENTS
+----------------------------------------------------------------------
+
+IDENTIFIER          ::= [a-zA-Z_][a-zA-Z0-9_]*
+INT_LITERAL         ::= [0-9]+
+FLOAT_LITERAL       ::= [0-9]+ "." [0-9]+
+SINGLE_LINE_COMMENT ::= "//" [^\n]* \n
+======================================================================

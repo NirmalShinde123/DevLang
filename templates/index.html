@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevLang Web Compiler & IDE</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; color: #333; display: flex; flex-direction: column; height: 100vh; }
+        header { background: #2c3e50; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; }
+        header h1 { font-size: 20px; }
+        .toolbar { background: #34495e; padding: 10px 25px; display: flex; gap: 10px; align-items: center; }
+        .btn { background: #27ae60; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px; }
+        .btn:hover { background: #219653; }
+        .btn-clear { background: #c0392b; }
+        .btn-clear:hover { background: #a93226; }
+        select { padding: 8px; border-radius: 4px; border: none; font-size: 14px; }
+        .main-container { display: flex; flex: 1; padding: 15px; gap: 15px; overflow: hidden; }
+        .pane { flex: 1; display: flex; flex-direction: column; background: white; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden; }
+        .pane-header { background: #ecf0f1; padding: 10px 15px; font-weight: bold; font-size: 14px; border-bottom: 1px solid #ddd; }
+        textarea { flex: 1; padding: 15px; font-family: 'Consolas', monospace; font-size: 14px; border: none; resize: none; outline: none; line-height: 1.5; }
+        .output-tabs { display: flex; background: #e0e6ed; border-bottom: 1px solid #ccc; }
+        .tab-btn { padding: 10px 20px; border: none; background: transparent; cursor: pointer; font-weight: bold; font-size: 13px; color: #555; }
+        .tab-btn.active { background: white; color: #2c3e50; border-bottom: 2px solid #27ae60; }
+        .tab-content { flex: 1; padding: 15px; font-family: 'Consolas', monospace; font-size: 13px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; white-space: pre-wrap; display: none; }
+        .tab-content.active { display: block; }
+        .status-bar { padding: 10px 25px; background: #fff; border-top: 1px solid #ddd; font-weight: bold; font-family: 'Consolas', monospace; font-size: 13px; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>🚀 DevLang Web IDE & Compiler</h1>
+    </header>
+
+    <div class="toolbar">
+        <button class="btn" onclick="compileCode()">▶ Compile All</button>
+        <select id="exampleSelect" onchange="loadExample()">
+            <option value="">Load Example...</option>
+            <option value="START int a = 10; int b = 20; int c = a + b * 2; print(c); END">Complex Arithmetic</option>
+            <option value="START int x = 10; if (x > 5) { x = x - 1; } else { x = 0; } print(x); END">If-Else Flow</option>
+            <option value="START int count = 3; while (count > 0) { print(count); count = count - 1; } END">While Loop</option>
+            <option value="START int @invalid = 10; END">Lexical Error Demo</option>
+            <option value="START int a = ; END">Syntax Error Demo</option>
+        </select>
+        <button class="btn btn-clear" onclick="clearEditor()">Clear</button>
+    </div>
+
+    <div class="main-container">
+        <!-- Left: Code Editor -->
+        <div class="pane">
+            <div class="pane-header">Source Code Editor (.dvl)</div>
+            <textarea id="codeEditor" placeholder="Type your DevLang code here...">START
+int a = 10;
+int b = 20;
+int c = a + b * 2;
+print(c);
+END</textarea>
+        </div>
+
+        <!-- Right: Outputs -->
+        <div class="pane">
+            <div class="output-tabs">
+                <button class="tab-btn active" onclick="switchTab(event, 'tokensTab')">Tokens</button>
+                <button class="tab-btn" onclick="switchTab(event, 'astTab')">AST</button>
+                <button class="tab-btn" onclick="switchTab(event, 'symTab')">Symbol Table</button>
+                <button class="tab-btn" onclick="switchTab(event, 'tacTab')">TAC</button>
+                <button class="tab-btn" onclick="switchTab(event, 'consoleTab')">Console</button>
+            </div>
+            
+            <div id="tokensTab" class="tab-content active">Click Compile to generate tokens...</div>
+            <div id="astTab" class="tab-content">AST will appear here...</div>
+            <div id="symTab" class="tab-content">Symbol table will appear here...</div>
+            <div id="tacTab" class="tab-content">Three Address Code will appear here...</div>
+            <div id="consoleTab" class="tab-content">Ready.</div>
+        </div>
+    </div>
+
+    <div class="status-bar" id="statusBar" style="background: #eef2f5; color: #2c3e50;">Ready for compilation.</div>
+
+    <script>
+        function switchTab(evt, tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            evt.currentTarget.classList.add('active');
+        }
+
+        function loadExample() {
+            const val = document.getElementById('exampleSelect').value;
+            if (val) {
+                document.getElementById('codeEditor').value = val;
+            }
+        }
+
+        function clearEditor() {
+            document.getElementById('codeEditor').value = '';
+            document.getElementById('statusBarinnerText').innerText = 'Editor cleared.';
+        }
+
+        async function compileCode() {
+            const code = document.getElementById('codeEditor').value;
+            const status = document.getElementById('statusBar');
+            
+            try {
+                const response = await fetch('http://127.0.0.1:5000/api/compile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: code })
+                });
+                const res = await response.json();
+
+                // Format Tokens
+                let tokenStr = "Index | Type            | Value            | Line | Col\n" + "-".repeat(55) + "\n";
+                res.tokens.forEach((t, i) => {
+                    tokenStr += `${String(i+1).pad5} | ${t.type.padEnd(15)} | ${String(t.value).padEnd(16)} | ${String(t.line).pad4} | ${String(t.col).pad4}\n`;
+                });
+                document.getElementById('tokensTab').innerText = tokenStr;
+                document.getElementById('astTab').innerText = res.ast || "No AST generated.";
+                document.getElementById('symTab').innerText = res.symbol_table || "No symbols recorded.";
+                document.getElementById('tacTab').innerText = res.tac ? res.tac.join('\n') : "No TAC generated.";
+
+                if (res.success) {
+                    status.style.background = "#d4edda";
+                    status.style.color = "#155724";
+                    status.innerText = "✓ Compilation Successful - All Phases Passed!";
+                    document.getElementById('consoleTab').innerText = "Compilation succeeded with 0 errors.";
+                } else {
+                    status.style.background = "#f8d7da";
+                    status.style.color = "#721c24";
+                    status.innerText = `✗ Compilation Failed at Phase [${res.failed_phase}]`;
+                    document.getElementById('consoleTab').innerText = res.error_report;
+                    switchTab({ currentTarget: document.querySelectorAll('.tab-btn')[4] }, 'consoleTab');
+                }
+            } catch (err) {
+                alert("Error connecting to Flask server! Make sure python app.py is running.");
+            }
+        }
+    </script>
+</body>
+</html>
